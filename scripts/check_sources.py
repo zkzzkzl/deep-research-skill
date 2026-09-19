@@ -14,7 +14,8 @@
   4. 疑似链接行（行内含 http 却解析不出有效 URL，需人工检查）
 退出码: 0=全部通过; 1=发现问题; 2=输入中未发现 URL。
 默认不发起网络请求; --probe 仅发送只读 HEAD/GET 用于探活，超时 5 秒。
---probe 默认禁止 localhost、私网、链路本地和保留地址，并检查重定向目标。
+--probe 仅允许 80/443 端口；解析后固定已校验的公网 IP，禁止 localhost、私网、
+链路本地、保留地址和云元数据地址，并对每次重定向重新解析和校验。
 本脚本不写入、不修改任何文件。
 
 --probe 且无问题时，输出末尾先打印「链接探活」摘要行（仅审计模式展示，不进入普通正文），
@@ -27,11 +28,15 @@
 from __future__ import annotations
 
 import argparse
+import errno
+import http.client
 import ipaddress
 import re
 import socket
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 URL_RE = re.compile(r"https?://[^\s<>\"'`|，。；：「」『』（）]+", re.IGNORECASE)
@@ -41,6 +46,12 @@ TRACKING_PARAMS = {
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
     "utm_id", "spm", "from", "share_token", "share_medium",
 }
+SENSITIVE_QUERY_PARAMS = {
+    "access_token", "api_key", "apikey", "auth", "authorization",
+    "client_secret", "key", "password", "passwd", "secret", "share_token",
+    "sig", "signature", "token",
+}
+ALLOWED_PORTS = {80, 443}
 
 
 def clean_url(url: str) -> str:
@@ -65,6 +76,32 @@ def normalize(url: str) -> str:
     return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path, urlencode(query), ""))
 
 
+def redact_url(url: str) -> str:
+    """隐藏 URL 用户信息和常见敏感查询参数，避免把密钥写入日志。"""
+    try:
+        parts = urlsplit(url)
+        hostname = parts.hostname or ""
+    except ValueError:
+        return "<无法解析的 URL>"
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    netloc = f"{hostname}:{port}" if port is not None else hostname
+
+    query = [
+        (key, "[REDACTED]" if key.lower() in SENSITIVE_QUERY_PARAMS else value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+    ]
+    encoded_query = urlencode(query).replace("%5BREDACTED%5D", "[REDACTED]")
+    fragment = "[REDACTED]" if parts.fragment else ""
+    return urlunsplit(
+        (parts.scheme.lower(), netloc, parts.path, encoded_query, fragment)
+    )
+
+
 def syntax_problems(url: str) -> list:
     problems = []
     if FULLWIDTH_RE.search(url):
@@ -81,6 +118,8 @@ def syntax_problems(url: str) -> list:
         problems.append("缺少域名")
     elif "." not in hostname and hostname != "localhost" and ":" not in hostname:
         problems.append("域名异常（缺少点号）")
+    if parts.username is not None or parts.password is not None:
+        problems.append("URL 禁止携带用户名或密码")
     return problems
 
 
@@ -100,64 +139,167 @@ def probe_online(result: str) -> bool:
     return result.endswith("| 在线")
 
 
-def network_safety_problem(url: str) -> str | None:
+def resolve_public_target(url: str) -> tuple[str, int]:
     parts = urlsplit(url)
     if parts.scheme.lower() not in ("http", "https"):
-        return "只允许探活 http/https 地址"
+        raise ValueError("只允许探活 http/https 地址")
     hostname = parts.hostname
     if not hostname:
-        return "URL 缺少域名"
+        raise ValueError("URL 缺少域名")
     if parts.username is not None or parts.password is not None:
-        return "禁止 URL 携带用户名或密码"
+        raise ValueError("禁止 URL 携带用户名或密码")
     if hostname.lower() == "localhost":
-        return "禁止访问 localhost"
+        raise ValueError("禁止访问 localhost")
 
     try:
         port = parts.port or (443 if parts.scheme.lower() == "https" else 80)
     except ValueError as exc:
-        return f"URL 端口无效: {exc}"
+        raise ValueError(f"URL 端口无效: {exc}") from exc
+    if port not in ALLOWED_PORTS:
+        raise ValueError("探活仅允许 80/443 端口")
     try:
-        addresses = {
+        addresses = sorted({
             item[4][0].split("%", 1)[0]
             for item in socket.getaddrinfo(
                 hostname,
                 port,
                 type=socket.SOCK_STREAM,
             )
-        }
+        })
     except OSError as exc:
-        return f"无法解析域名: {exc}"
+        raise ValueError(f"无法解析域名: {exc}") from exc
+    if not addresses:
+        raise ValueError("域名未解析到可用 IP 地址")
 
     for address in addresses:
         try:
             ip = ipaddress.ip_address(address)
         except ValueError:
-            return f"返回了无效 IP 地址: {address}"
+            raise ValueError(f"返回了无效 IP 地址: {address}") from None
         if not ip.is_global:
-            return f"禁止访问非公网地址: {address}"
+            raise ValueError(f"禁止访问非公网地址: {address}")
+    return addresses[0], port
+
+
+def network_safety_problem(url: str) -> str | None:
+    try:
+        resolve_public_target(url)
+    except ValueError as exc:
+        return str(exc)
     return None
 
 
-def _open_request(request, timeout: float):
-    import urllib.error
-    import urllib.request
+class PinnedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, host: str, *args, target_ip: str, **kwargs):
+        super().__init__(host, *args, **kwargs)
+        self._target_ip = target_ip
 
-    class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def connect(self) -> None:
+        self.sock = socket.create_connection(
+            (self._target_ip, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        try:
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError as exc:
+            if exc.errno != errno.ENOPROTOOPT:
+                raise
+        if self._tunnel_host:
+            self._tunnel()
+
+
+class PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, host: str, *args, target_ip: str, **kwargs):
+        super().__init__(host, *args, **kwargs)
+        self._target_ip = target_ip
+
+    def connect(self) -> None:
+        self.sock = socket.create_connection(
+            (self._target_ip, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        try:
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError as exc:
+            if exc.errno != errno.ENOPROTOOPT:
+                raise
+        if self._tunnel_host:
+            self._tunnel()
+            server_hostname = self._tunnel_host
+        else:
+            server_hostname = self.host
+        self.sock = self._context.wrap_socket(
+            self.sock,
+            server_hostname=server_hostname,
+        )
+
+
+def _pinned_http_factory(target_ip: str):
+    def factory(host: str, timeout=None, **kwargs):
+        return PinnedHTTPConnection(
+            host,
+            timeout=timeout,
+            target_ip=target_ip,
+            **kwargs,
+        )
+
+    return factory
+
+
+def _pinned_https_factory(target_ip: str):
+    def factory(host: str, timeout=None, **kwargs):
+        return PinnedHTTPSConnection(
+            host,
+            timeout=timeout,
+            target_ip=target_ip,
+            **kwargs,
+        )
+
+    return factory
+
+
+class PinnedHTTPHandler(urllib_request.HTTPHandler):
+    def http_open(self, req):
+        try:
+            target_ip, _ = resolve_public_target(req.full_url)
+        except ValueError as exc:
+            raise urllib_error.URLError(str(exc)) from exc
+        return self.do_open(_pinned_http_factory(target_ip), req)
+
+
+class PinnedHTTPSHandler(urllib_request.HTTPSHandler):
+    def https_open(self, req):
+        try:
+            target_ip, _ = resolve_public_target(req.full_url)
+        except ValueError as exc:
+            raise urllib_error.URLError(str(exc)) from exc
+        return self.do_open(_pinned_https_factory(target_ip), req)
+
+
+def _open_request(request, timeout: float):
+    class SafeRedirectHandler(urllib_request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             target = urljoin(req.full_url, newurl)
-            problem = network_safety_problem(target)
-            if problem:
-                raise urllib.error.URLError(f"重定向被安全策略阻止: {problem}")
+            try:
+                resolve_public_target(target)
+            except ValueError as exc:
+                raise urllib_error.URLError(
+                    f"重定向被安全策略阻止: {exc}"
+                ) from exc
             return super().redirect_request(req, fp, code, msg, headers, target)
 
-    opener = urllib.request.build_opener(SafeRedirectHandler)
+    opener = urllib_request.build_opener(
+        urllib_request.ProxyHandler({}),
+        SafeRedirectHandler,
+        PinnedHTTPHandler,
+        PinnedHTTPSHandler,
+    )
     return opener.open(request, timeout=timeout)
 
 
 def probe(url: str, timeout: float = 5.0) -> str:
-    import urllib.error
-    import urllib.request
-
     safety_problem = network_safety_problem(url)
     if safety_problem:
         return f"安全限制 | {safety_problem}"
@@ -165,10 +307,10 @@ def probe(url: str, timeout: float = 5.0) -> str:
     headers = {"User-Agent": "Mozilla/5.0 (deep-research-skill link checker)"}
     for method in ("HEAD", "GET"):
         try:
-            request = urllib.request.Request(url, method=method, headers=headers)
+            request = urllib_request.Request(url, method=method, headers=headers)
             with _open_request(request, timeout) as response:
                 return f"HTTP {response.status} | {probe_verdict(response.status)}"
-        except urllib.error.HTTPError as exc:
+        except urllib_error.HTTPError as exc:
             if method == "HEAD" and exc.code in (403, 405, 501):
                 continue
             return f"HTTP {exc.code} | {probe_verdict(exc.code)}"
@@ -189,7 +331,11 @@ def print_paste_block(results: list) -> None:
     print()
     print("【落位要求】存在异常链接时，把下面两条横线之间的「异常链接」部分原样放入报告档「证据与来源」表格正下方（紧接表格、位于「来源分歧」之前）；简单档置于来源行之后。顶格书写，不得加项目符号、加粗或缩进，不得改写结论措辞；无异常时正文写「异常链接：无」。上面的「链接探活」摘要行仅审计模式展示，不进入普通正文。")
     print("--- 异常链接区块开始（仅含异常链接部分，照抄，勿改写）---")
-    anomalies = [(index, url, result) for index, url, result in results if not probe_online(result)]
+    anomalies = [
+        (index, redact_url(url), result)
+        for index, url, result in results
+        if not probe_online(result)
+    ]
     if anomalies:
         print("异常链接：")
         for index, url, result in anomalies:
@@ -202,7 +348,11 @@ def print_paste_block(results: list) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="来源链接批量校验")
     parser.add_argument("input_file", nargs="?", help="包含 URL 的文本文件；缺省读取 stdin")
-    parser.add_argument("--probe", action="store_true", help="附加联网探活（需要网络）")
+    parser.add_argument(
+        "--probe",
+        action="store_true",
+        help="附加联网探活；仅在用户明确同意后使用（需要网络）",
+    )
     args = parser.parse_args()
 
     if args.input_file:
@@ -252,7 +402,10 @@ def main() -> int:
         issues = syntax_problems(url)
         if issues:
             problems += 1
-            print(f"[{index:03d}] 行 {line_no} | 问题: {'; '.join(issues)} | {url}")
+            print(
+                f"[{index:03d}] 行 {line_no} | 问题: {'; '.join(issues)}"
+                f" | {redact_url(url)}"
+            )
             continue
 
         normalized = normalize(url)
@@ -271,9 +424,12 @@ def main() -> int:
 
         if duplicate_of is not None:
             duplicates += 1
-            print(f"[{index:03d}] 行 {line_no} | 提示: 与第 {duplicate_of} 条{duplicate_kind}，探活复用首次出现项 | {url}")
+            print(
+                f"[{index:03d}] 行 {line_no} | 提示: 与第 {duplicate_of} 条"
+                f"{duplicate_kind}，探活复用首次出现项 | {redact_url(url)}"
+            )
         else:
-            print(f"[{index:03d}] 行 {line_no} | 通过 | {url}")
+            print(f"[{index:03d}] 行 {line_no} | 通过 | {redact_url(url)}")
 
     if broken_link_lines:
         problems += len(broken_link_lines)
@@ -289,7 +445,10 @@ def main() -> int:
             verdicts = list(pool.map(probe, [url for _, _, _, url in unique_for_probe]))
         for (probe_index, original_index, line_no, url), verdict in zip(unique_for_probe, verdicts):
             probe_results.append((probe_index, url, verdict))
-            print(f"  [{probe_index}] {verdict} | 行 {line_no}，原 URL 序号 {original_index} | {url}")
+            print(
+                f"  [{probe_index}] {verdict} | 行 {line_no}，"
+                f"原 URL 序号 {original_index} | {redact_url(url)}"
+            )
 
     if problems:
         print(f"\n校验完成: 发现 {problems} 条问题 URL。")
