@@ -80,7 +80,7 @@
 
 ## 四、查询规划与改写
 
-中文查询优先尝试以下变体：
+查询语言优先匹配用户语言、问题辖区和主要来源语言。中文查询优先尝试以下变体：
 
 - 官方术语和政策全名。
 - 机构名称、缩写和完整名称。
@@ -89,6 +89,16 @@
 - 同期、累计、当月、同比、环比和季调等口径。
 - `site:` 或平台允许的站点限定查询。
 - 简体、繁体以及必要的外文原始术语。
+
+英文查询优先尝试以下变体：
+
+- Official terminology, policy titles, and agency names.
+- Full institution names, abbreviations, former names, and local-language names.
+- ISO or source-native date formats such as `YYYY`, `YYYY-MM`, and `Month YYYY`.
+- Metric names, acronyms, units, and internationally standardized definitions.
+- Statistical scope terms such as year-over-year, quarter-over-quarter, cumulative, seasonally adjusted, and real versus nominal.
+- `site:` limits or platform-supported domain filters.
+- Original-language terms when the relevant jurisdiction uses another language.
 
 每次改写都记录原查询和结果，避免重复执行相同查询。
 

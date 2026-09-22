@@ -1,13 +1,13 @@
 ---
 name: deep-research-skill
-description: "对用户指定的主题执行可溯源的深度检索与证据核验：拆分检索、按职责路由（结构化数据源/联网搜索/读原文/浏览器操作）、事实摘录、多来源交叉印证、口径与量纲核对、计算核验、强制溯源与可信度标注。当消息出现「深度检索」「深度查证」或「深度研究」时触发；「深度检索 配置」输出工具绑定引导，不做检索；「深度检索 自检」输出能力绑定报告，不做检索；不含上述词根的普通问题不启用本流程。"
+description: "对用户指定的主题执行可溯源的深度检索与证据核验：拆分检索、按职责路由（结构化数据源/联网搜索/读原文/浏览器操作）、事实摘录、多来源交叉印证、口径与量纲核对、计算核验、强制溯源与可信度标注。消息包含「深度检索」「深度查证」「深度研究」，或英文短语 deep research、deep verification（不区分大小写）时触发；也支持对应的 config / self-check 模式。输出语言遵循用户语言；无法判断时使用简体中文。"
 agent_created: true
-version: 3.5.0
+version: 3.6.0
 ---
 
 # 深度检索
 
-通过可审计、可复核的过程找到可靠来源，提取并核验信息，再用简体中文清晰呈现结果。
+通过可审计、可复核的过程找到可靠来源，提取并核验信息，再用用户使用的语言清晰呈现结果；无法判断用户语言时使用简体中文。
 
 本 skill 的核心是检索和证据核验。分析不是重点；来源观点和简短推断必须与事实分开。
 
@@ -23,16 +23,16 @@ version: 3.5.0
 6. 只有能力缺失、结果受限、需要授权、来源存在重大冲突或用户要求调试时，才说明内部限制。
 7. 仅当歧义实质影响检索方向、覆盖范围或结论用途，且无法用合理假设消解时，先向用户提出一次澄清问题再继续；能通过合理假设消解的歧义不打断，采用的假设在结果中说明。
 
-用户使用「深度研究」时默认按本 skill 执行检索，不自动扩展为原创研究、预测或决策建议。
+用户使用「深度研究」或 `deep research` 时默认按本 skill 执行检索，不自动扩展为原创研究、预测或决策建议。
 
 ## 触发与模式路由
 
-- 消息包含词根「深度检索」「深度查证」或「深度研究」即启用本流程。
+- 消息包含「深度检索」「深度查证」「深度研究」，或英文短语 `deep research`、`deep verification`（不区分大小写）即启用本流程。
 - 按消息内容路由到三种模式：
-  1. 「深度检索 配置」：只执行工具绑定引导（见 platform-adapters.md），输出配置报告与待办清单，不做检索。
-  2. 「深度检索 自检」：只执行行为探针自检（见 platform-adapters.md），输出绑定报告，不做检索。
+  1. 「深度检索 配置」/「deep research config」：只执行工具绑定引导（见 platform-adapters.md），输出配置报告与待办清单，不做检索。
+  2. 「深度检索 自检」/「deep research self-check」：只执行行为探针自检（见 platform-adapters.md），输出绑定报告，不做检索。
   3. 其余情况：静默完成能力发现与绑定后，执行检索流程，不输出绑定过程。
-- 消息不含上述词根时，不启用本流程，按常规方式回答。
+- 消息不含上述中英触发短语时，不启用本流程，按常规方式回答。
 
 ## 核心流程
 
@@ -88,7 +88,7 @@ version: 3.5.0
 - 全球问题优先对应国际组织、原始数据集或标准机构。
 - 跨国比较分别使用各辖区来源，并核对统计口径。
 
-不建立中国来源优先，也不因来源所在国家自动加分或减分。简体中文是默认输出语言，原始资料可以使用其他语言。
+不建立中国来源优先，也不因来源所在国家自动加分或减分。输出语言按用户语言策略决定，原始资料可以使用其他语言。
 
 详细规则见 [source-selection.md](references/source-selection.md)。
 
@@ -100,7 +100,7 @@ version: 3.5.0
 structured / search / fetch / browser / compute / clock / code
 ```
 
-普通请求中静默判断能力，不输出工具绑定报告；「深度检索 配置」与「深度检索 自检」是仅有的两个显式输出入口。主要降级规则：
+普通请求中静默判断能力，不输出工具绑定报告；「深度检索 配置」/`deep research config` 与「深度检索 自检」/`deep research self-check` 是仅有的两个显式输出入口。主要降级规则：
 
 - 搜索不可用：优先处理已知 URL、结构化入口或用户提供来源。
 - 原文不可用：可以暂用搜索摘要，但关键数字降低可信度并标注限制。
@@ -138,7 +138,13 @@ structured / search / fetch / browser / compute / clock / code
 
 默认优先使用简洁档；多实体、比较、时效敏感、来源冲突或用户明确要求时使用报告档。报告档动笔前先落证据表骨架——每行先占位全字段（事实、数值/要点、来源与完整 URL、发布日期、证据类型）再回填内容，避免结构校验返工。问题属于数值型、判断型、核实型、方法型还是清单型，见 output-contract.md 的「问题型别与模板路由」。
 
-简洁档：
+输出语言按以下优先级选择：
+
+1. 用户明确指定的输出语言。
+2. 当前对话的主要语言。
+3. 无法判断时使用简体中文。
+
+简洁档（中文）：
 
 ```text
 <直接结论，含适用范围和时间>
@@ -146,7 +152,15 @@ structured / search / fetch / browser / compute / clock / code
 核验：<已核实 / 依据有限 / 未验证 / 存在分歧>
 ```
 
-报告档（骨架与小节顺序固定，受限标注在最前）：
+Concise mode (English):
+
+```text
+<Direct conclusion, including scope and time>
+Source: <source name> (<full URL>, published: <date>)
+Verification: <Verified / Limited evidence / Unverified / Conflicting>
+```
+
+报告档（中文，骨架与小节顺序固定，受限标注在最前）：
 
 ```text
 [受限模式：<缺失通道及影响>（仅受限时标注）]
@@ -160,12 +174,26 @@ structured / search / fetch / browser / compute / clock / code
 ### 未覆盖范围
 ```
 
+Report mode (English; keep the same section order):
+
+```text
+[Limited mode: <missing channel and impact>（only when applicable）]
+### Research Findings
+### Evidence and Sources
+| # | Fact | Value/Key point | Source and Full URL | Publication Date | Evidence Type |
+|---|---|---|---|---|---|
+| 1 | <fact> | <value or key point> | <source name> (https://…) | <YYYY-MM-DD> | <Fact / Source view / Inference> |
+### Source Disagreements
+### Verification Status
+### Uncovered Scope
+```
+
 链接状态呈现规则：
 
 - 来源链接全量给出完整 URL；确无公开链接的标注「无公开链接」及原因。
 - 异常链接（失效、反爬、超时等）逐条列出，含链接序号、URL 与探活结论，与脚本输出一致。
 - 正常链接不逐条标注；「链接探活：N/M 在线」摘要行仅在用户要求调试（审计模式）时展示。
-- 本地增强不可用、未获联网授权或探活失败时，注明「链接探活：未执行（原因）」，不得省略。
+- 本地增强不可用、未获联网授权或探活失败时，注明「链接探活：未执行（原因）」；英文输出时为「Link probing: not run (reason)」，不得省略。
 
 完整格式、五型别骨架与示例见 [output-contract.md](references/output-contract.md)。
 

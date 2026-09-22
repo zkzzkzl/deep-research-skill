@@ -1,6 +1,6 @@
 # 输出契约
 
-用户默认只需要结果、来源和核验状态。内部工具、路径、预算和日志不进入普通输出。
+用户默认只需要结果、来源和核验状态。内部工具、路径、预算和日志不进入普通输出。输出语言遵循 SKILL.md 的语言优先级；中文与英文模板的结构等价。
 
 ## 一、简洁档
 
@@ -11,6 +11,15 @@
 
 来源：<来源名称>（<完整 URL>，发布：<日期>）
 核验：<已核实 / 依据有限 / 未验证 / 存在分歧>
+```
+
+English mode:
+
+```text
+<Direct conclusion, including scope and time>
+
+Source: <source name> (<full URL>, published: <date>)
+Verification: <Verified / Limited evidence / Unverified / Conflicting>
 ```
 
 示例：
@@ -59,6 +68,31 @@
 <未找到、无法访问、需要授权或超出检索预算的范围；没有则写「无」>
 ```
 
+English mode uses the same structure and order:
+
+```text
+[Limited mode: <missing channel and impact>]
+
+### Research Findings
+- <At most 3 items; each ends with "(Fact / Source view / Inference | verification status)">
+
+### Evidence and Sources
+| # | Fact | Value/Key point | Source and Full URL | Publication Date | Evidence Type |
+|---|---|---|---|---|---|
+
+Broken links:
+- Link N | <URL> | <probe result>
+
+### Source Disagreements
+<conflicts, definitions, and unresolved items; write "No material disagreements found" when none>
+
+### Verification Status
+<source independence, timing, definitions, and calculation status for each finding>
+
+### Uncovered Scope
+<missing, inaccessible, authorization-limited, or budget-limited material; write "None" when none>
+```
+
 「异常链接」块紧接证据表；无异常写「异常链接：无」；探活未执行写「链接探活：未执行（原因）」且不列链接结论。「链接探活：N/M 在线」摘要行仅审计模式展示。
 
 动笔顺序（强制）：撰写报告档时先写证据表骨架——每行先落全「事实 / 数值/要点 / 来源与完整 URL / 发布日期 / 证据类型」字段占位（异常链接块同步占位），再回填内容；先骨架后内容，避免交付前结构校验因缺字段返工。
@@ -90,9 +124,9 @@
 
 每条结论内部标记类型：
 
-- `事实`：来源直接支持。
-- `来源观点`：来源自己的判断、预测或解释。
-- `推断`：基于已记录事实的简短推理。
+- `事实` / `Fact`：来源直接支持。
+- `来源观点` / `Source view`：来源自己的判断、预测或解释。
+- `推断` / `Inference`：基于已记录事实的简短推理。
 
 推断必须写依据，不能使用与事实相同的确定语气。默认不输出建议。
 
@@ -130,7 +164,9 @@
 
 ## 六、时间与语言
 
-- 默认使用简体中文。
+- 输出语言优先级：用户明确指定 > 当前对话主要语言 > 简体中文。
+- 中文核验状态：`已核实 / 依据有限 / 未验证 / 存在分歧`。
+- English verification states: `Verified / Limited evidence / Unverified / Conflicting`。
 - 默认时区为 `Asia/Shanghai`，用户可覆盖。
 - 日期使用 `YYYY-MM-DD`，同时写出必要的数据统计期。
 - 数字附单位、货币和口径；同比、环比和百分点不得混用。

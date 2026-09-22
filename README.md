@@ -2,13 +2,13 @@
 
 An auditable and reproducible deep research and evidence-verification skill for AI agents. It breaks research into question analysis, source discovery, primary-source retrieval, fact verification, conflict handling, and structured output.
 
-Current version: `3.5.0`
+Current version: `3.6.0`
 
-The skill currently produces Simplified Chinese output by default. This README is provided in English for repository users and contributors.
+The skill supports Chinese and English triggers. Final output follows the user's language, with Simplified Chinese as the fallback when the language cannot be determined.
 
 ## Core Features
 
-- Triggered by the Chinese keywords `深度检索`, `深度查证`, or `深度研究`.
+- Triggered by `深度检索`, `深度查证`, `深度研究`, `deep research`, or `deep verification` (English phrases are case-insensitive).
 - Selects paths across four responsibility channels: structured data, search, source retrieval, and browser interaction.
 - Prioritizes primary sources when verifying key figures, dates, institutions, and versions.
 - Separates facts, source opinions, and inferences.
@@ -17,6 +17,25 @@ The skill currently produces Simplified Chinese output by default. This README i
 - Treats web pages, PDFs, search results, and attachments as untrusted data.
 - Keeps remote link probing disabled by default; it runs only with explicit user consent.
 - Uses no third-party Python dependencies and does not download or execute remote code.
+
+## Language Behavior
+
+Trigger aliases:
+
+| Mode | Chinese | English |
+|---|---|---|
+| Research | `深度检索`, `深度研究` | `deep research` |
+| Verification | `深度查证` | `deep verification` |
+| Configuration | `深度检索 配置` | `deep research config` |
+| Self-check | `深度检索 自检` | `deep research self-check` |
+
+Output language priority:
+
+1. The language explicitly requested by the user.
+2. The predominant language of the current conversation.
+3. Simplified Chinese when the language cannot be determined.
+
+Report headings, verification labels, and evidence-table column names are localized while preserving the same section order and validation rules.
 
 ## Repository Layout
 
@@ -36,7 +55,8 @@ The skill currently produces Simplified Chinese output by default. This README i
 │   ├── today.py
 │   └── verify_report.py
 └── tests/
-    └── test_check_sources.py
+    ├── test_check_sources.py
+    └── test_verify_report.py
 ```
 
 `SKILL.md` is the entry point and contains the hard rules. `references/` contains the detailed workflows. `scripts/` contains optional local enhancements.
@@ -90,41 +110,58 @@ Platforms that support the `SKILL.md` convention can read the repository directl
 
 ```text
 深度检索：2025 China new energy vehicle exports and year-over-year growth
+deep research: 2025 China new energy vehicle exports and year-over-year growth
 ```
 
 ```text
 深度查证：Is the claim "an institution released the latest population data" authentic?
+deep verification: Is the claim "an institution released the latest population data" authentic?
 ```
 
 ```text
 深度研究：Compare 2025 solar capacity additions in China, the EU, and the United States, and explain differences in statistical scope
+deep research: Compare 2025 solar capacity additions in China, the EU, and the United States, and explain differences in statistical scope
 ```
 
 ### Configuration and Self-Check
 
 ```text
 深度检索 配置
+deep research config
 ```
 
 Produces a capability binding report and a to-do list without performing the actual research task.
 
 ```text
 深度检索 自检
+deep research self-check
 ```
 
 Runs permitted capability probes and reports the resulting bindings. Any network probe requires explicit user authorization.
 
 ### Output Modes
 
-The concise mode is intended for single-point facts:
+The concise mode is intended for single-point facts.
+
+Chinese output:
 
 ```text
-<Direct conclusion, including scope and time>
-来源：<Source name>（<Full URL>，发布：<Date>）
+<直接结论，含适用范围和时间>
+来源：<来源名称>（<完整 URL>，发布：<日期>）
 核验：<已核实 / 依据有限 / 未验证 / 存在分歧>
 ```
 
-The report mode uses a fixed structure:
+English output:
+
+```text
+<Direct conclusion, including scope and time>
+Source: <source name> (<full URL>, published: <date>)
+Verification: <Verified / Limited evidence / Unverified / Conflicting>
+```
+
+The report mode uses a fixed structure.
+
+Chinese headings:
 
 ```text
 ### 检索结论
@@ -132,6 +169,16 @@ The report mode uses a fixed structure:
 ### 来源分歧
 ### 核验状态
 ### 未覆盖范围
+```
+
+English headings:
+
+```text
+### Research Findings
+### Evidence and Sources
+### Source Disagreements
+### Verification Status
+### Uncovered Scope
 ```
 
 ## Local Scripts
@@ -192,7 +239,7 @@ Exit codes:
 
 ### `verify_report.py`
 
-Validates the structure of a concise or report-mode output before delivery:
+Validates the structure of a Chinese or English concise/report-mode output before delivery:
 
 ```bash
 python -X utf8 scripts/verify_report.py report.md

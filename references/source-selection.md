@@ -35,9 +35,9 @@
 
 具体来源以当前问题的辖区和领域为准，不在主流程保存固定域名清单。
 
-## 四、中文检索适配
+## 四、中文与英文检索适配
 
-搜索服务只负责发现候选来源，不自动获得来源权威性。可以按环境配置使用 Bing 中文、百度、搜狗、360、站点搜索或平台内置搜索。
+搜索服务只负责发现候选来源，不自动获得来源权威性。可以按环境配置使用 Bing、百度、搜狗、360、Google、站点搜索或平台内置搜索。
 
 中文查询需要处理：
 
@@ -46,7 +46,15 @@
 - 政策名称、文号和发布日期。
 - 简体、繁体以及必要的英文、日文或法文原始术语。
 
-允许直接读取外文原始来源，最终用简体中文呈现。必要时保留原词并给出中文翻译。
+英文查询需要处理：
+
+- Differences between official terminology, acronyms, and common names.
+- Full legal names, abbreviations, former names, and local-language names.
+- Formal policy or regulation titles and effective dates.
+- Source-native terms in another language when the relevant jurisdiction does not publish in English.
+- Regional spelling, currency, fiscal-year, and statistical-definition differences.
+
+允许直接读取外文原始来源，最终用用户语言呈现。必要时保留原词并给出对应用户语言的翻译。
 
 ## 五、跨辖区冲突
 

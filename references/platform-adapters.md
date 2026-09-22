@@ -29,7 +29,7 @@
 
 ## 三、行为探测与绑定报告
 
-判定只看行为结果（是否真的调用工具并返回外部数据或正确计算），不看模型自述。无网络的本地能力检查可以静默执行；任何联网探针必须先向用户说明范围并取得明确同意。「深度检索 配置」与「深度检索 自检」是仅有的两个显式输出入口。
+判定只看行为结果（是否真的调用工具并返回外部数据或正确计算），不看模型自述。无网络的本地能力检查可以静默执行；任何联网探针必须先向用户说明范围并取得明确同意。「深度检索 配置」/「deep research config」与「深度检索 自检」/「deep research self-check」是仅有的两个显式输出入口。
 
 ### 探针任务集
 
@@ -71,10 +71,30 @@
 处理完成后回复「已处理」，我会重跑对应探针确认。
 ```
 
+English mode:
+
+```text
+Deep Research · Binding Report
+Environment: <preset binding / probe binding>
+Bindings:
+| Capability | Bound to | Status | Evidence |
+|---|---|---|---|
+| Structured access | <tool or "None"> | Available / Unavailable / Not probed | <result> |
+| Information discovery | <tool> | Available / Unavailable | <result> |
+| Content retrieval | <tool> | Available / Unavailable | <result> |
+| Browser interaction | <tool> | Available / Unavailable / Not probed | <result> |
+| Compute | <tool> | Available / Unavailable | <result> |
+| Script execution | <Python command> | Available / Unavailable | <result> |
+Action items:
+1. <one sentence per item>
+2. <write "No action required; all required capabilities are available" when none>
+After completing the items, reply "Done" and I will rerun the relevant probes.
+```
+
 ### 纯诚实模式
 
 - 触发条件：P1、P2、P3 全部不可用。
-- 行为：告知当前环境无联网检索工具；后续回答全部基于模型记忆，每条关键信息标注（未核实）；建议用户开启平台联网能力后重新执行「深度检索 配置」。
+- 行为：告知当前环境无联网检索工具；后续回答全部基于模型记忆，每条关键信息标注（未核实）；建议用户开启平台联网能力后重新执行「深度检索 配置」或 `deep research config`。
 - 禁止：在纯诚实模式下伪装成已联网检索的结果输出。
 
 ## 四、平台适配

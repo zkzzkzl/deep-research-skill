@@ -25,10 +25,24 @@ import sys
 HEADING_RE = re.compile(r"^(#{1,6})\s*(.+?)\s*$")
 TABLE_SEP_RE = re.compile(r"^\|[\s:|\-]+\|$")
 DATE_RE = re.compile(r"(?:19|20)\d{2}-\d{2}-\d{2}")
-REPORT_HEADINGS = ("检索结论", "证据与来源", "来源分歧", "核验状态", "未覆盖范围")
-VERIFY_LABELS = ("已核实", "依据有限", "未验证", "存在分歧")
-CLAIM_TYPES = ("事实", "来源观点", "推断")
+REPORT_SECTIONS = (
+    ("检索结论", "Research Findings"),
+    ("证据与来源", "Evidence and Sources"),
+    ("来源分歧", "Source Disagreements"),
+    ("核验状态", "Verification Status"),
+    ("未覆盖范围", "Uncovered Scope"),
+)
+REPORT_HEADINGS = tuple(" / ".join(group) for group in REPORT_SECTIONS)
+VERIFY_LABELS = (
+    "已核实", "依据有限", "未验证", "存在分歧",
+    "Verified", "Limited evidence", "Unverified", "Conflicting",
+)
+CLAIM_TYPES = ("事实", "来源观点", "推断", "Fact", "Source view", "Inference")
 EVIDENCE_COLUMNS = ("#", "事实", "数值/要点", "来源与完整 URL", "发布日期", "证据类型")
+EVIDENCE_COLUMNS_EN = (
+    "#", "Fact", "Value/Key point", "Source and Full URL",
+    "Publication Date", "Evidence Type",
+)
 
 
 def split_cells(row):
@@ -49,10 +63,29 @@ def same_columns(actual, expected):
     return squeeze(actual) == squeeze(expected)
 
 
-def find_heading(lines, keyword):
+def contains_label(text, labels):
+    folded = text.casefold()
+    for label in labels:
+        if any("\u4e00" <= char <= "\u9fff" for char in label):
+            if label in text:
+                return True
+            continue
+        pattern = r"(?<![a-z])" + re.escape(label.casefold()) + r"(?![a-z])"
+        if re.search(pattern, folded):
+            return True
+    return False
+
+
+def find_heading(lines, keywords):
+    if isinstance(keywords, str):
+        keywords = (keywords,)
+    folded_keywords = tuple(keyword.casefold() for keyword in keywords)
     for index, line in enumerate(lines):
         match = HEADING_RE.match(line)
-        if match and keyword in match.group(2):
+        if not match:
+            continue
+        heading = match.group(2).casefold()
+        if any(keyword in heading for keyword in folded_keywords):
             return index
     return None
 
@@ -104,29 +137,29 @@ def main() -> int:
     if report_mode:
         positions = []
         missing = []
-        for heading in REPORT_HEADINGS:
-            position = find_heading(lines, heading)
+        for aliases in REPORT_SECTIONS:
+            position = find_heading(lines, aliases)
             if position is None:
-                missing.append(heading)
+                missing.append(" / ".join(aliases))
             else:
-                positions.append((heading, position))
+                positions.append((aliases, position))
         if missing:
             failures.append((
                 "1. 报告骨架",
                 f"缺少规定小节：{'、'.join(missing)}；应为 {' → '.join(REPORT_HEADINGS)}",
             ))
         else:
-            ordered = [heading for heading, _ in positions]
-            if ordered != list(REPORT_HEADINGS):
+            ordered = [aliases for aliases, _ in positions]
+            if ordered != list(REPORT_SECTIONS):
                 failures.append((
                     "1. 报告骨架",
-                    f"小节顺序错误：{' → '.join(ordered)}；应为 {' → '.join(REPORT_HEADINGS)}",
+                    f"小节顺序错误：{' → '.join(' / '.join(group) for group in ordered)}；应为 {' → '.join(REPORT_HEADINGS)}",
                 ))
 
         conclusion_lines = section_lines(
             lines,
-            "检索结论",
-            find_heading(lines, "证据与来源"),
+            REPORT_SECTIONS[0],
+            find_heading(lines, REPORT_SECTIONS[1]),
         )
         claim_lines = [
             line for line in conclusion_lines
@@ -141,7 +174,7 @@ def main() -> int:
             missing_types = [
                 line.strip()
                 for line in claim_lines
-                if not any(label in line for label in CLAIM_TYPES)
+                if not contains_label(line, CLAIM_TYPES)
             ]
             if missing_types:
                 failures.append((
@@ -151,7 +184,7 @@ def main() -> int:
             missing_verify = [
                 line.strip()
                 for line in claim_lines
-                if not any(label in line for label in VERIFY_LABELS)
+                if not contains_label(line, VERIFY_LABELS)
             ]
             if missing_verify:
                 failures.append((
@@ -159,7 +192,7 @@ def main() -> int:
                     f"以下结论未标注核验状态：{missing_verify[0][:80]}",
                 ))
 
-        evidence_pos = find_heading(lines, "证据与来源")
+        evidence_pos = find_heading(lines, REPORT_SECTIONS[1])
         if evidence_pos is not None:
             evidence_end = next(
                 (
@@ -183,11 +216,16 @@ def main() -> int:
                     evidence_rows.append((index + 1, lines[index]))
                 else:
                     header_cells = split_cells(lines[index])
-            if header_cells and not same_columns(header_cells, EVIDENCE_COLUMNS):
+            if header_cells and not (
+                same_columns(header_cells, EVIDENCE_COLUMNS)
+                or same_columns(header_cells, EVIDENCE_COLUMNS_EN)
+            ):
                 failures.append((
                     "4. 证据表列名",
-                    "表头为「" + " | ".join(header_cells) + "」；应为「"
+                    "表头为「" + " | ".join(header_cells) + "」；应为中文表头「"
                     + " | ".join(EVIDENCE_COLUMNS)
+                    + "」或英文表头「"
+                    + " | ".join(EVIDENCE_COLUMNS_EN)
                     + "」（见 output-contract.md 第二节）",
                 ))
             if not evidence_rows:
@@ -210,12 +248,12 @@ def main() -> int:
         source_lines = [
             line.strip()
             for line in lines
-            if line.strip().startswith(("来源：", "来源:"))
+            if re.match(r"^(来源[:：]|source\s*:)", line.strip(), re.IGNORECASE)
         ]
         verify_lines = [
             line.strip()
             for line in lines
-            if line.strip().startswith(("核验：", "核验:"))
+            if re.match(r"^(核验[:：]|verification\s*:)", line.strip(), re.IGNORECASE)
         ]
 
         if not source_lines:
@@ -225,7 +263,7 @@ def main() -> int:
             ))
         else:
             source_text = " ".join(source_lines)
-            if "http" not in source_text and "无公开链接" not in source_text:
+            if "http" not in source_text and "无公开链接" not in source_text and "no public link" not in source_text.casefold():
                 failures.append((
                     "1. 来源",
                     "来源行没有 URL；确无公开链接时必须说明原因",
@@ -250,7 +288,7 @@ def main() -> int:
     link_status_lines = [
         line.strip()
         for line in lines
-        if line.strip().startswith(("链接状态：", "链接状态:"))
+        if re.match(r"^(链接状态[:：]|link status\s*:)", line.strip(), re.IGNORECASE)
     ]
     for line in link_status_lines:
         if "http" not in line and "无" not in line:
