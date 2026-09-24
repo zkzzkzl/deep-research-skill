@@ -2,7 +2,7 @@
 
 Verifiable Research is an auditable and reproducible research and evidence-verification skill for AI agents. It breaks research into question analysis, source discovery, primary-source retrieval, fact verification, conflict handling, and structured output.
 
-Current version: `3.6.1`
+Current version: `3.6.2`
 
 The skill supports Chinese and English triggers. Final output follows the user's language, with Simplified Chinese as the fallback when the language cannot be determined.
 
@@ -342,4 +342,4 @@ Before submitting a change:
 
 ## License
 
-This repository does not currently declare an open-source license. All rights are reserved by default. Contact the repository owner for permission before reusing, modifying, or distributing the project.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
