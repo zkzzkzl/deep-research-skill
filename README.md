@@ -1,8 +1,8 @@
-# Deep Research Skill
+# Verifiable Research
 
-An auditable and reproducible deep research and evidence-verification skill for AI agents. It breaks research into question analysis, source discovery, primary-source retrieval, fact verification, conflict handling, and structured output.
+Verifiable Research is an auditable and reproducible research and evidence-verification skill for AI agents. It breaks research into question analysis, source discovery, primary-source retrieval, fact verification, conflict handling, and structured output.
 
-Current version: `3.6.0`
+Current version: `3.6.1`
 
 The skill supports Chinese and English triggers. Final output follows the user's language, with Simplified Chinese as the fallback when the language cannot be determined.
 
@@ -76,25 +76,25 @@ The Python scripts are not required for the core research workflow. If Python, n
 Clone or copy the repository into your personal skills directory:
 
 ```bash
-git clone https://github.com/zkzzkzl/deep-research-skill.git
+git clone https://github.com/zkzzkzl/verifiable-research.git
 ```
 
 Place the directory at:
 
 ```text
-~/.codex/skills/deep-research-skill/
+~/.codex/skills/verifiable-research/
 ```
 
 Default Windows location:
 
 ```text
-%USERPROFILE%\.codex\skills\deep-research-skill\
+%USERPROFILE%\.codex\skills\verifiable-research\
 ```
 
 The directory should contain `SKILL.md` directly:
 
 ```text
-deep-research-skill/
+verifiable-research/
 ├── SKILL.md
 ├── references/
 └── scripts/
@@ -106,7 +106,7 @@ Platforms that support the `SKILL.md` convention can read the repository directl
 
 ## Usage
 
-### Deep Research
+### Research Requests
 
 ```text
 深度检索：2025 China new energy vehicle exports and year-over-year growth

@@ -1,11 +1,11 @@
 ---
-name: deep-research-skill
+name: verifiable-research
 description: "对用户指定的主题执行可溯源的深度检索与证据核验：拆分检索、按职责路由（结构化数据源/联网搜索/读原文/浏览器操作）、事实摘录、多来源交叉印证、口径与量纲核对、计算核验、强制溯源与可信度标注。消息包含「深度检索」「深度查证」「深度研究」，或英文短语 deep research、deep verification（不区分大小写）时触发；也支持对应的 config / self-check 模式。输出语言遵循用户语言；无法判断时使用简体中文。"
 agent_created: true
-version: 3.6.0
+version: 3.6.1
 ---
 
-# 深度检索
+# Verifiable Research / 深度检索
 
 通过可审计、可复核的过程找到可靠来源，提取并核验信息，再用用户使用的语言清晰呈现结果；无法判断用户语言时使用简体中文。
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""来源链接批量校验（deep-research-skill 可选本地增强）。
+"""来源链接批量校验（verifiable-research 可选本地增强）。
 
 用法:
   python check_sources.py <包含URL的文本文件>
@@ -304,7 +304,7 @@ def probe(url: str, timeout: float = 5.0) -> str:
     if safety_problem:
         return f"安全限制 | {safety_problem}"
 
-    headers = {"User-Agent": "Mozilla/5.0 (deep-research-skill link checker)"}
+    headers = {"User-Agent": "Mozilla/5.0 (verifiable-research link checker)"}
     for method in ("HEAD", "GET"):
         try:
             request = urllib_request.Request(url, method=method, headers=headers)

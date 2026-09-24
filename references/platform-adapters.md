@@ -74,7 +74,7 @@
 English mode:
 
 ```text
-Deep Research · Binding Report
+Verifiable Research · Binding Report
 Environment: <preset binding / probe binding>
 Bindings:
 | Capability | Bound to | Status | Evidence |

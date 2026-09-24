@@ -121,7 +121,7 @@ def main() -> int:
     failures = []
     hints = []
 
-    print("深度检索输出校验 · deep-research-skill")
+    print("深度检索输出校验 · verifiable-research")
     print(f"输入: {source}")
     print(f"行数: {len(lines)}")
     print()
